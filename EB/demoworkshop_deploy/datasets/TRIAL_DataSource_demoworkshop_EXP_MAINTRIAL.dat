@@ -1,0 +1,12 @@
+trualnum	$condition	$target	$tarimage	$comimage	$disimage1	$disimage2	tarlocation	comlocation	dis1location	dis2location	$soundname	targetonset	displayonset
+number	string	string	string	string	string	string	number	number	number	number	string	number	number
+1	"practical"	"cu"	"cu_03.png"	"du3_03.png"	"miL_03.png"	"yi2_03.png"	1	2	3	4	"filler_cu.wav"	3808	3608
+2	"practical"	"dan"	"dan1_03.png"	"xia1_03.png"	"zou_03.png"	"kuang1_03.png"	2	1	4	3	"filler_dan.wav"	4059	3859
+3	"practical"	"fu"	"fuL_03.png"	"cong_03.png"	"gu1_03.png"	"lian1_03.png"	3	4	1	2	"filler_fu1.wav"	3826	3626
+4	"practical"	"hua"	"hua1_03.png"	"bo1_03.png"	"jiao1_03.png"	"pu_03.png"	4	3	2	1	"filler_hua1.wav"	3789	3589
+5	"practical"	"jian"	"jian1_03.png"	"gangL_03.png"	"pu1_03.png"	"xie1_03.png"	2	1	3	4	"filler_jian1.wav"	3775	3575
+6	"practical"	"ju"	"ju_03.png"	"di1_03.png"	"shui_03.png"	"zei_03.png"	4	2	1	3	"filler_ju.wav"	3781	3581
+7	"practical"	"ke"	"ke1_03.png"	"tian_03.png"	"tu1_03.png"	"xie2_03.png"	3	4	2	1	"filler_ke.wav"	3797	3597
+8	"practical"	"lu"	"lu1_03.png"	"chai1_03.png"	"dan2_03.png"	"zhu1_03.png"	1	3	4	2	"filler_lu.wav"	3756	3556
+9	"practical"	"xiao"	"xiao_03.png"	"gang1_03.png"	"paiL_03.png"	"wanL_03.png"	2	3	4	1	"filler_xiao.wav"	3760	3560
+10	"practical"	"zhuang"	"zhuang1_03.png"	"chi1_03.png"	"ren1_03.png"	"shu2_03.png"	3	4	1	2	"filler_zhuang.wav"	3941	3741

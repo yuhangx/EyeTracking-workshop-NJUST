@@ -1,0 +1,79 @@
+---
+title: "eyetrackingR Demo"
+author: "Yuhang Xu"
+date: "6/5/2018"
+output: pdf_document
+---
+
+# load *eyetrackingR* and set data options
+```{r load *eyetrackingR* and set data options}
+library(eyetrackingR)
+library(lme4)
+library(lmerTest)
+
+data("word_recognition")
+dataset <- make_eyetrackingr_data(word_recognition, 
+                               participant_column = "ParticipantName",
+                               trial_column = "Trial",
+                               time_column = "TimeFromTrialOnset",
+                               trackloss_column = "TrackLoss",
+                               aoi_columns = c('Animate','Inanimate'),
+                               treat_non_aoi_looks_as_missing = TRUE
+)
+
+str(dataset)
+head(dataset)
+```
+
+# remove trackloss-ridden trials
+```{r}
+dataset_clean <- clean_by_trackloss(dataset, 
+                                   participant_prop_thresh = 1, trial_prop_thresh = .25, 
+                                   window_start_time = 15500, window_end_time = 21000)
+```
+
+# zoom in on response window
+```{r}
+word_window <- subset_by_window(dataset_clean, rezero = FALSE,
+                                window_start_time = 15500, window_end_time = 21000)
+
+```
+
+# create a column indicating what type of trial:
+```{r}
+word_window$Target <- as.factor( ifelse(test = grepl('(Spoon|Bottle)', word_window$Trial), 
+                                        yes = 'Inanimate', 
+                                        no  = 'Animate') )
+```
+
+# convert data into a series of time-bins:
+```{r}
+word_time <- make_time_sequence_data(word_window, time_bin_size = 100, 
+                                     predictor_columns = "Target", aois = c("Animate"))
+plot(word_time, predictor_column = "Target")
+```
+
+```{r}
+# An important step in performing regression analysis is to center predictors (in order to make parameter estimates more interpretable)
+word_time$TargetC <- ifelse(word_time$Target == 'Animate', .5, -.5)
+word_time$TargetC <- word_time$TargetC - mean(word_time$TargetC)
+```
+
+```{r }
+#Using mixed-effects models
+# mixed-effects linear model on subject*trial data
+model_time_window <- lmer(Elog ~ TargetC + (1 + TargetC | Trial) + (1 | ParticipantName), data = word_time, REML = FALSE)
+# cleanly show important parts of model (see `summary()` for more)
+(est <- broom::tidy(model_time_window, effects="fixed"))
+summary(model_time_window)
+```
+
+
+```{r}
+# perform a growth-curve analysis
+model <- lmer(Elog ~ TargetC*(ot1 + ot2 + ot3 + ot4 + ot5) + (1 | Trial) + (1 | ParticipantName), data = word_time, REML = FALSE)
+broom::tidy(model, effects="fixed")
+#drop1(model,~.,test="Chi")
+```
+
+
