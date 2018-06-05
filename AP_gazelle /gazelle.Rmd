@@ -1,0 +1,426 @@
+---
+title: "Analysis of visual-world study Gazelle"
+author: "Anne Pier Salverda"
+date: 'Executed: `r Sys.Date()`'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, eval = TRUE, cache = FALSE,
+                      message = FALSE, comment = "",
+                      fig.align = "center", fig.path = "Figures/")
+```
+
+```{r load libraries; read data; collapse some values of look variable}
+library(tidyverse)
+theme_set(theme_bw())
+library(gridExtra)
+library(knitr)
+library(broom)
+library(lme4)
+
+rm(list = ls())
+
+source("gazelle_functions.R")
+
+dat = read_rds("Data/gazelle_n53_112116.rds.gz")
+# collapse looks to distractor_adult and distractor_kid
+levels(dat$look)[which(levels(dat$look) == "distractor_adult")] = "distractor"
+levels(dat$look)[which(levels(dat$look) == "distractor_kid")] = "distractor"
+```
+
+# Introduction
+This visual-world study examines if listeners are able to adjust their
+expectations about which words a speaker would plausibly know to constrain the
+set of candidate words during real-time spoken-word recognition.
+
+The speaker is Gazelle, a three-year old girl.
+At the start of the experiment, participants watch a video of Gazelle talking, so they are familiar with her voice before the visual-world study starts.
+
+# Design
+On each trial, participants see a visual display with four pictures.
+After two seconds, they hear Gazelle say the name one of the pictures (e.g. "children").
+The participant's task is to click on that picture.
+Of interest are fixations to two phonological competitors--words start with the same sounds as target word.
+One of these is a picture whose name Gazelle likely knows (e.g. "chicken").
+The other is a picture whose name Gazelle most likely does not know (e.g. "chisel").
+Of interest is the degree to which participants fixate each type of competitor.
+
+![Example of a visual display.](screenshot-children.png)
+
+__________
+
+# Results: all trials
+## Anomalies in soundcard timing
+
+```{r visualize soundcard timing, fig.cap = "Discrepancy between sound offset and wordoffset > 8ms."}
+# create times relative to word onset
+dat = dat %>% 
+  mutate(time_rel_soundfile = abs_time - time_soundfile,
+         time_rel_soundoffset = abs_time - time_soundoffset,
+         time_rel_wordoffset = abs_time - time_wordoffset)
+
+# CHECK: soundoffset stimulus message and wordoffset response message aligned?!
+#  NOTE: large discrepancies almost always on trial 1, which is practice trial!
+dat %>% distinct(subject, trial, .keep_all = TRUE) %>%
+  mutate(discrepancy = time_rel_soundoffset - time_rel_wordoffset) %>% 
+  select(subject, trial, item, discrepancy) %>% 
+  filter(abs(discrepancy) > 8) %>% 
+  ggplot(aes(y = discrepancy, x = trial)) +
+  geom_count() +
+  xlim(1, 37) +
+  scale_y_reverse(lim = c(0, NA)) +
+  labs(x = "Trial number", y = "Discrepancy (ms)")
+```
+
+*Note:* Large (>12 ms) differences in timing only occur on first trial, which is a practice trial.
+
+## Responses
+### `r library(dplyr); dat %>% distinct(subject, item, clicked_type) %>% filter(clicked_type != "target") %>% nrow()` incorrect responses
+```{r trials with incorrect response}
+dat %>%
+  filter(clicked_type != "target") %>% 
+  distinct(item, clicked_type, subject) %>%
+  count(item, clicked_type) %>% 
+  arrange(item, clicked_type) %>%
+  kable()
+```
+
+*Note:* Some participants have trouble with the target "fork" and choose "four".
+Consider discarding this item.
+
+### Participants who made multiple mistakes:
+```{r participants with more than one incorrect response}
+dat %>%
+  distinct(item, clicked_type, subject) %>%
+  filter(clicked_type != "target") %>% 
+  count(subject) %>% 
+  filter(n > 1) %>% 
+  kable()
+```
+
+Given the simplicity of the task, consider discarding these participants.
+
+### RT distribution across all trials
+
+```{r RT distribution}
+dat %>%
+  distinct(subject, trial, .keep_all = TRUE) %>%
+  ggplot(aes(x = time_clicked - time_soundfile)) +
+  geom_histogram(binwidth = 100) +
+  labs(x = "RT relative to word onset (ms)")
+```
+
+*Note:* Typical distribution with a couple of outliers.
+
+__________
+
+# Results: 20 critical trials
+```{r select only experimental trials}
+dat.exp = dat %>% 
+  filter(condition == "exp") %>% 
+  droplevels()
+```
+
+## Anomalies in soundcard timing
+```{r experimental trials: visualize soundcard timing, fig.cap = "Discrepancy between sound offset and wordoffset > 8ms."}
+dat.exp %>% distinct(subject, trial, .keep_all = TRUE) %>%
+  mutate(discrepancy = time_rel_soundoffset - time_rel_wordoffset) %>% 
+  select(subject, trial, item, discrepancy) %>% 
+  filter(abs(discrepancy) > 8) %>% 
+  ggplot(aes(y = discrepancy, x = trial)) +
+  geom_count() +
+  xlim(1, 37) +
+  scale_y_reverse(lim = c(0, NA)) +
+  labs(x = "Trial number", y = "Discrepancy (ms)")
+```
+
+*Note:* No large (>12 ms) differences.
+
+## Responses
+### `r library(dplyr); dat.exp %>% distinct(subject, item, clicked_type) %>% filter(clicked_type != "target") %>% nrow()` incorrect responses, which are discarded
+```{r experimental trials: trials with incorrect response}
+dat.exp %>%
+  filter(clicked_type != "target") %>% 
+  distinct(item, clicked_type, subject) %>%
+  count(item, clicked_type) %>% 
+  arrange(item, clicked_type) %>%
+  kable()
+
+# discard trials with incorrect responses, also in main dataframe
+dat.incorrect = filter(dat, clicked_type != "target")
+dat = filter(dat, clicked_type == "target")
+dat.exp = dat.exp %>% filter(clicked_type == "target")
+```
+
+*Note:* Consider discarding item "fork"; many participants respond "four".
+
+## Reaction times
+### RT distribution across all trials
+```{r experimental trials: RT distribution; all trials}
+dat.exp %>%
+  distinct(subject, item, .keep_all = TRUE) %>%
+  ggplot(aes(x = time_clicked - time_soundfile)) +
+  geom_histogram(binwidth = 100) +
+  labs(x = "RT relative to word onset (ms)")
+```
+
+*Note:* Typical distribution with a couple of outliers.
+
+### RT distributions by items
+```{r experimental trials: RT distribution; by item}
+dat.exp %>%
+  distinct(subject, item, .keep_all = TRUE) %>%
+  ggplot(aes(x = time_clicked - time_soundfile)) +
+  geom_histogram(binwidth = 250) +
+  labs(x = "RT relative to word onset (ms)") +
+  facet_wrap(~item)
+```
+
+## Final fixation on experimental trials
+```{r experimental trials: final fixation}
+dat.exp %>%
+  filter(condition == "exp", abs_time == time_clicked) %>% 
+  count(look) %>% 
+  mutate(proportion = round(n / sum(n), 2)) %>%
+  select(-n) %>% 
+  arrange(desc(proportion)) %>% 
+  kable()
+```
+
+```{r experimental trials: optional, eval = FALSE}
+# optional: proportion of final fixations to target across subjects
+dat.exp %>%
+  filter(condition == "exp", abs_time == time_clicked) %>% 
+  count(subject, look) %>% 
+  mutate(proportion = round(n / sum(n), 2)) %>% 
+  filter(look == "target") %>% 
+  arrange(desc(proportion)) %>% 
+  kable()
+```
+
+## Proportion-of-fixations plots
+### Mean proportion of fixations by item
+```{r experimental trials: facet wrap by item}
+fix_prop_facet(dat, by_var = "item",
+               plot_looks = c("target", "competitor_adult", "competitor_kid", "distractor"))
+```
+
+*Note:* Some items show weak competition effects; two items (*toast* and *four*) show very strong child competitor effects.
+
+### Mean proportion of fixations averaged across subjects
+```{r experimental trials: grand mean across subjects}
+fix_prop_mean(dat, by_var = "subject",
+              plot_looks = c("target", "competitor_kid", "competitor_adult", "distractor"))
+```
+
+*Note:* Both phonological competitors (child: "chicken"; adult: "chisel") are
+fixated more than the distractor, as expected.
+
+__________
+
+## Growth curve analyses (GCA)
+Competitor curves are fit with 2^nd^ order orthogonal polynomials; plot shows one clear "bend" in
+competitor fixations.
+
+*Note:* given large number of data points,  absolute t-values of >2 indicate statistical significance.
+
+### 1. Child competitor vs. distractor
+```{r gca child competitor: competitor vs. baseline}
+# create dataframe for [200, 800] interval with 50 ms resolution
+gca_data = fix_prop_facet(dat, by_var = "subject",
+                          downsample = 50,
+                          time_onset = 200, time_offset = 800,
+                          plot_looks = c("competitor_kid", "distractor"),
+                          return_data = TRUE, print_plot = FALSE)
+# add orthogonal polynomials
+gca_data = gca_data %>% 
+  add_orthogonal_polynomials("time_rel_onset", 4) %>% 
+  rename(subject = by_copy) %>% 
+  arrange(subject, time_rel_onset, look) %>% 
+  tbl_df
+# GCA models, 2nd order polynomial
+gca_c_kid_base = lmer(proportion ~ (op1 + op2) +
+                        (op1 + op2 | subject),
+                      data = gca_data,
+                      control = lmerControl(optimizer = "bobyqa"),
+                      REML = FALSE)
+
+gca_c_kid_1 = lmer(proportion ~ (op1 + op2) + look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_c_kid_2 = lmer(proportion ~ (op1 + op2) + look + op1:look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_c_kid_3 = lmer(proportion ~ (op1 + op2) + look + op1:look + op2:look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_data$fitted = fitted(gca_c_kid_3)
+# plot model, with data averaged across subjects
+plot_model_data(gca_data, gca_c_kid_3, "GCA: Child competitor vs. distractor")
+```
+
+Results show that overall, participants looked significantly more at the child competitor than at the distractor. Moreover, there was a significant effect of picture type (child competitor vs. distractor) on the quadratic term, suggesting a difference in the time course of fixations, more specifically, a difference in the rate of change in fixations between the two types of pictures over time (also see [Appendix](#appendix)).
+
+```{r}
+gca_c_kid_3 %>% tidy %>% kable(digits = 3)
+```
+
+### 2. Adult competitor vs. distractor
+```{r gca adult competitor: competitor vs. baseline}
+# create dataframe for [200, 800] interval with 50 ms resolution
+gca_data = fix_prop_facet(dat, by_var = "subject",
+                          downsample = 50,
+                          time_onset = 200, time_offset = 800,
+                          plot_looks = c("competitor_adult", "distractor"),
+                          return_data = TRUE, print_plot = FALSE)
+# add orthogonal polynomials
+gca_data = gca_data %>% 
+  add_orthogonal_polynomials("time_rel_onset", 4) %>% 
+  rename(subject = by_copy) %>% 
+  arrange(subject, time_rel_onset, look) %>% 
+  tbl_df
+# GCA models, 2nd order polynomial
+gca_c_adult_base = lmer(proportion ~ (op1 + op2) +
+                        (op1 + op2 | subject),
+                      data = gca_data,
+                      control = lmerControl(optimizer = "bobyqa"),
+                      REML = FALSE)
+
+gca_c_adult_1 = lmer(proportion ~ (op1 + op2) + look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_c_adult_2 = lmer(proportion ~ (op1 + op2) + look + op1:look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_c_adult_3 = lmer(proportion ~ (op1 + op2) + look + op1:look + op2:look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_data$fitted = fitted(gca_c_adult_3)
+# plot model, with data averaged across subjects
+plot_model_data(gca_data, gca_c_adult_3, "GCA: Adult competitor vs. distractor")
+```
+
+Results show that overall, participants looked significantly more at the adult competitor than at the distractor. However, the effect of picture type (adult competitor vs. distractor) on the quadratic term was not significant. (Though note p = .0646; see [Appendix](#appendix)).
+
+```{r}
+gca_c_adult_3 %>% tidy %>% kable(digits = 3)
+```
+
+Having established that participants looked more at both types of competitors than at the distractor, we can
+now proceed with the crucial comparison.  Our hypothesis was that listeners would activate
+"child competitors" (words that our 3-year-old speaker likely knows) more than "adult competitors" (words that
+our 3-year old speaker likely does not know).  We therefore expected to observe more fixations to the child competitor than to the adult competitor.
+
+### 3. Child competitor vs. adult competitor
+
+```{r CRUCIAL: gca child competitor vs. adult competitor, warning = FALSE}
+# create dataframe for [200, 800] interval with 50 ms resolution
+gca_data = fix_prop_facet(dat, by_var = "subject",
+                          downsample = 50,
+                          time_onset = 200, time_offset = 800,
+                          plot_looks = c("competitor_kid", "competitor_adult"),
+                          return_data = TRUE, print_plot = FALSE)
+# add orthogonal polynomials
+gca_data = gca_data %>% 
+  add_orthogonal_polynomials("time_rel_onset", 4) %>% 
+  rename(subject = by_copy) %>% 
+  arrange(subject, time_rel_onset, look) %>% 
+  tbl_df
+# GCA models, 2nd order polynomial
+gca_c_a_base = lmer(proportion ~ (op1 + op2) +
+                        (op1 + op2 | subject),
+                      data = gca_data,
+                      control = lmerControl(optimizer = "bobyqa"),
+                      REML = FALSE)
+
+gca_c_a_1 = lmer(proportion ~ (op1 + op2) + look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_c_a_2 = lmer(proportion ~ (op1 + op2) + look + op1:look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_c_a_3 = lmer(proportion ~ (op1 + op2) + look + op1:look + op2:look +
+                     (op1 + op2 | subject),
+                   data = gca_data,
+                   control = lmerControl(optimizer = "bobyqa"),
+                   REML = FALSE)
+
+gca_data$fitted = fitted(gca_c_a_3)
+# plot model, with data averaged across subjects
+plot_model_data(gca_data, gca_c_a_3, "GCA: Child competitor vs. adult competitor")
+```
+
+## Conclusions
+
+Results show that overall, participants looked significantly more at the child competitor than at the adult
+competitor.  Moreover, there was a significant effect of picture type (child competitor vs. adult competitor) on the quadratic term, suggesting a difference in the time course of fixations to child and adult competitors in terms of the rate of change in fixations over time (also see [Appendix](#appendix)).
+
+```{r}
+gca_c_a_3 %>% tidy %>% kable(digits = 3)
+```
+
+__________
+
+## Appendix: GCA models {#appendix}
+
+### Model construction, evaluation of fixed effects
+
+Each model was built starting with a baseline model (0), using the predictors:
+
+0. linear and quadratic effect; random intercept and slopes for both terms by participant
+1. add fixed effect of picture type
+2. add interaction between picture type and linear term
+3. add interaction between picture type and quadratic term
+
+**ANOVA** was used to evaluate significant improvements in model fit, by comparing nested models
+(row 2: model 0 vs model 1; row 3: model 1 vs. model 2; row 4: model 2 vs. model 3).
+
+### 1. Child competitor vs. distractor
+```{r, warning= FALSE}
+anova(gca_c_kid_base, gca_c_kid_1, gca_c_kid_2, gca_c_kid_3) %>% tidy %>% kable(digits = 3)
+```
+
+### 2. Adult competitor vs. distractor
+```{r, warning = FALSE}
+anova(gca_c_adult_base, gca_c_adult_1, gca_c_adult_2, gca_c_adult_3) %>% tidy %>% kable(digits = 3)
+```
+
+### 3. Child competitor vs. adult competitor
+```{r warning = FALSE}
+anova(gca_c_a_base, gca_c_a_1, gca_c_a_2, gca_c_a_3) %>% tidy %>% kable(digits = 3)
+```
+
+__________
+
+###R session info:
+
+```{r session info}
+devtools::session_info()
+```
